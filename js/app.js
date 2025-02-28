@@ -8,7 +8,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const statusText = document.getElementById('statusText');
 
     // API endpoint
-    const API_URL = 'https://your-render-backend-url.onrender.com';  // Update this with your Render URL
+    const API_URL = 'https://ai-book-summary-api.onrender.com';  // Update this with your Render URL
 
     // Handle drag and drop
     dropZone.addEventListener('dragover', (e) => {
