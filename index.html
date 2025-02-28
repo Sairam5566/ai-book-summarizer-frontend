@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Book Summary Visualizer</title>
+    <link rel="stylesheet" href="css/style.css">
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>AI Book Summary Visualizer</h1>
+        </header>
+        
+        <main>
+            <div class="upload-section">
+                <h2>Upload Book</h2>
+                <div class="upload-box" id="dropZone">
+                    <input type="file" id="fileInput" accept=".txt" hidden>
+                    <div class="upload-content">
+                        <img src="images/upload.svg" alt="Upload" class="upload-icon">
+                        <p>Drag and drop your book file here or</p>
+                        <button class="upload-btn" onclick="document.getElementById('fileInput').click()">Choose File</button>
+                    </div>
+                </div>
+                <p class="file-info" id="fileInfo"></p>
+            </div>
+
+            <div class="processing-section" id="processingSection" style="display: none;">
+                <div class="progress">
+                    <div class="progress-bar" id="progressBar"></div>
+                </div>
+                <p class="status" id="statusText">Processing your book...</p>
+            </div>
+
+            <div class="results-section" id="resultsSection" style="display: none;">
+                <div class="tabs">
+                    <button class="tab-btn active" data-tab="summary">Summary</button>
+                    <button class="tab-btn" data-tab="mindmap">Mindmap</button>
+                    <button class="tab-btn" data-tab="keyPhrases">Key Phrases</button>
+                </div>
+
+                <div class="tab-content">
+                    <div class="tab-pane active" id="summary">
+                        <h3>Book Summary</h3>
+                        <div id="summaryContent"></div>
+                    </div>
+                    <div class="tab-pane" id="mindmap">
+                        <h3>Mindmap Visualization</h3>
+                        <div id="mindmapVisualization"></div>
+                    </div>
+                    <div class="tab-pane" id="keyPhrases">
+                        <h3>Key Phrases</h3>
+                        <div id="keyPhrasesContent"></div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+    <script src="js/app.js"></script>
+</body>
+</html>
