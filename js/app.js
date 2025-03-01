@@ -44,6 +44,7 @@ document.addEventListener('DOMContentLoaded', () => {
     async function uploadAndProcess(file) {
         try {
             processingSection.style.display = 'block';
+            resultsSection.style.display = 'none';
             progressBar.style.width = '0%';
             statusText.textContent = 'Uploading file...';
 
@@ -57,141 +58,111 @@ document.addEventListener('DOMContentLoaded', () => {
                 body: formData
             });
 
-            if (!response.ok) throw new Error('Upload failed');
-
-            const { id } = await response.json();
-            await processBook(id);
-
-        } catch (error) {
-            console.error('Error:', error);
-            statusText.textContent = 'Error processing file. Please try again.';
-            progressBar.style.backgroundColor = 'var(--error-color)';
-        }
-    }
-
-    async function processBook(bookId) {
-        try {
-            statusText.textContent = 'Processing book...';
-            progressBar.style.width = '50%';
-
-            // Poll for results
-            const result = await pollForResults(bookId);
-            
-            // Display results
-            displayResults(result);
-            
-            processingSection.style.display = 'none';
-            resultsSection.style.display = 'block';
-
-        } catch (error) {
-            console.error('Error:', error);
-            statusText.textContent = 'Error processing book. Please try again.';
-            progressBar.style.backgroundColor = 'var(--error-color)';
-        }
-    }
-
-    async function pollForResults(bookId) {
-        const maxAttempts = 60; // 5 minutes with 5-second intervals
-        let attempts = 0;
-
-        while (attempts < maxAttempts) {
-            const response = await fetch(`${API_URL}/status/${bookId}`);
-            const data = await response.json();
-
-            if (data.status === 'completed') {
-                progressBar.style.width = '100%';
-                return data.result;
-            } else if (data.status === 'failed') {
-                throw new Error('Processing failed');
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
             }
 
-            attempts++;
-            await new Promise(resolve => setTimeout(resolve, 5000));
-        }
+            progressBar.style.width = '50%';
+            statusText.textContent = 'Processing text...';
 
-        throw new Error('Processing timed out');
+            const result = await response.json();
+
+            if (result.error) {
+                throw new Error(result.error);
+            }
+
+            // Display results
+            progressBar.style.width = '100%';
+            statusText.textContent = 'Complete!';
+            displayResults(result);
+
+        } catch (error) {
+            console.error('Error:', error);
+            statusText.textContent = `Error: ${error.message}`;
+            progressBar.style.width = '0%';
+        }
     }
 
     function displayResults(result) {
+        processingSection.style.display = 'none';
+        resultsSection.style.display = 'block';
+
         // Display summary
-        document.getElementById('summaryContent').innerHTML = `
-            <h4>Final Summary</h4>
-            <p>${result.final_summary}</p>
-            <h4>Chapter Summaries</h4>
-            ${result.chunk_summaries.map((summary, i) => `
-                <div class="chapter-summary">
-                    <h5>Chapter ${i + 1}</h5>
-                    <p>${summary}</p>
-                </div>
-            `).join('')}
-        `;
+        document.getElementById('summaryText').textContent = result.summary;
 
-        // Display key phrases
-        document.getElementById('keyPhrasesContent').innerHTML = result.key_phrases
-            .map(phrase => `<span class="key-phrase">${phrase}</span>`)
-            .join('');
-
-        // Create mindmap visualization using D3.js
-        createMindmap(result);
+        // Create mindmap visualization
+        createMindmap(result.entities);
     }
 
-    function createMindmap(data) {
+    function createMindmap(entities) {
         const width = 800;
         const height = 600;
+        const centerX = width / 2;
+        const centerY = height / 2;
 
-        const svg = d3.select('#mindmapVisualization')
+        // Clear previous visualization
+        d3.select('#mindmap').selectAll('*').remove();
+
+        // Create SVG
+        const svg = d3.select('#mindmap')
             .append('svg')
             .attr('width', width)
             .attr('height', height);
 
-        const root = d3.hierarchy({
-            name: "Book Summary",
-            children: [
-                {
-                    name: "Key Phrases",
-                    children: data.key_phrases.map(phrase => ({ name: phrase }))
-                },
-                {
-                    name: "Chapters",
-                    children: data.chunk_summaries.map((summary, i) => ({
-                        name: `Chapter ${i + 1}`,
-                        summary: summary
-                    }))
-                }
-            ]
-        });
+        // Create nodes
+        const nodes = entities.map((entity, index) => ({
+            id: index,
+            text: entity.text,
+            type: entity.type,
+            x: centerX + Math.cos(index * 2 * Math.PI / entities.length) * 200,
+            y: centerY + Math.sin(index * 2 * Math.PI / entities.length) * 200
+        }));
 
-        const treeLayout = d3.tree().size([height, width - 160]);
-        treeLayout(root);
+        // Create center node
+        const centerNode = {
+            id: 'center',
+            text: 'Summary',
+            type: 'CENTER',
+            x: centerX,
+            y: centerY
+        };
 
         // Add links
-        svg.selectAll('path')
-            .data(root.links())
-            .enter()
-            .append('path')
-            .attr('d', d3.linkHorizontal()
-                .x(d => d.y)
-                .y(d => d.x))
-            .attr('fill', 'none')
-            .attr('stroke', '#ccc');
+        const links = nodes.map(node => ({
+            source: centerNode,
+            target: node
+        }));
 
-        // Add nodes
-        const nodes = svg.selectAll('g')
-            .data(root.descendants())
+        // Draw links
+        svg.selectAll('line')
+            .data(links)
+            .enter()
+            .append('line')
+            .attr('x1', d => d.source.x)
+            .attr('y1', d => d.source.y)
+            .attr('x2', d => d.target.x)
+            .attr('y2', d => d.target.y)
+            .attr('stroke', '#999')
+            .attr('stroke-width', 1);
+
+        // Draw nodes
+        const nodeGroups = svg.selectAll('g')
+            .data([centerNode, ...nodes])
             .enter()
             .append('g')
-            .attr('transform', d => `translate(${d.y},${d.x})`);
+            .attr('transform', d => `translate(${d.x},${d.y})`);
 
-        nodes.append('circle')
-            .attr('r', 5)
-            .attr('fill', 'var(--primary-color)');
+        nodeGroups.append('circle')
+            .attr('r', d => d.type === 'CENTER' ? 40 : 30)
+            .attr('fill', d => d.type === 'CENTER' ? '#4CAF50' : '#2196F3')
+            .attr('stroke', '#fff')
+            .attr('stroke-width', 2);
 
-        nodes.append('text')
-            .attr('dx', d => d.children ? -8 : 8)
-            .attr('dy', 3)
-            .attr('text-anchor', d => d.children ? 'end' : 'start')
-            .text(d => d.data.name)
-            .style('font-size', '12px');
+        nodeGroups.append('text')
+            .attr('text-anchor', 'middle')
+            .attr('dy', '.3em')
+            .attr('fill', 'white')
+            .text(d => d.text.length > 15 ? d.text.substring(0, 15) + '...' : d.text);
     }
 
     // Handle tab switching
