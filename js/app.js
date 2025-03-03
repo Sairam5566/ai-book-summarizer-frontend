@@ -52,14 +52,30 @@ document.addEventListener('DOMContentLoaded', () => {
             const formData = new FormData();
             formData.append('file', file);
 
+            // First check if the API is available
+            try {
+                const healthCheck = await fetch(`${API_URL}/health`);
+                if (!healthCheck.ok) {
+                    throw new Error('Backend service is not available');
+                }
+            } catch (error) {
+                throw new Error('Cannot connect to backend service. Please try again later.');
+            }
+
             // Upload file
             const response = await fetch(`${API_URL}/upload`, {
                 method: 'POST',
-                body: formData
+                headers: {
+                    'Accept': 'application/json',
+                },
+                body: formData,
+                mode: 'cors',
+                credentials: 'omit'
             });
 
             if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
+                const errorText = await response.text();
+                throw new Error(`Server error: ${errorText}`);
             }
 
             progressBar.style.width = '50%';
@@ -80,6 +96,7 @@ document.addEventListener('DOMContentLoaded', () => {
             console.error('Error:', error);
             statusText.textContent = `Error: ${error.message}`;
             progressBar.style.width = '0%';
+            progressBar.style.backgroundColor = '#ff4444';
         }
     }
 
