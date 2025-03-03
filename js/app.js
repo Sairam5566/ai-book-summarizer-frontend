@@ -65,12 +65,8 @@ document.addEventListener('DOMContentLoaded', () => {
             // Upload file
             const response = await fetch(`${API_URL}/upload`, {
                 method: 'POST',
-                headers: {
-                    'Accept': 'application/json',
-                },
                 body: formData,
                 mode: 'cors',
-                credentials: 'omit'
             });
 
             if (!response.ok) {
