@@ -78,9 +78,10 @@ document.addEventListener('DOMContentLoaded', () => {
             statusText.textContent = 'Processing text...';
 
             const result = await response.json();
+            console.log('Response:', result); // Add logging
 
-            if (result.error) {
-                throw new Error(result.error);
+            if (!result || !result.summary || !result.entities) {
+                throw new Error('Invalid response format from server');
             }
 
             // Display results
@@ -97,14 +98,24 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function displayResults(result) {
+        if (!result || !result.summary || !result.entities) {
+            console.error('Invalid result format:', result);
+            return;
+        }
+
         processingSection.style.display = 'none';
         resultsSection.style.display = 'block';
 
         // Display summary
-        document.getElementById('summaryText').textContent = result.summary;
+        const summaryElement = document.getElementById('summaryText');
+        if (summaryElement) {
+            summaryElement.textContent = result.summary;
+        }
 
-        // Create mindmap visualization
-        createMindmap(result.entities);
+        // Create mindmap visualization if we have entities
+        if (Array.isArray(result.entities)) {
+            createMindmap(result.entities);
+        }
     }
 
     function createMindmap(entities) {
