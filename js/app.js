@@ -130,8 +130,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function createMindmap(entities) {
-        const width = 800;
-        const height = 600;
+        const width = 1200;
+        const height = 800;
         const centerX = width / 2;
         const centerY = height / 2;
 
@@ -140,13 +140,25 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!mindmapVisualization) return;
         mindmapVisualization.innerHTML = '';
 
-        // Create SVG
+        // Create SVG with zoom capability
         const svg = d3.select('#mindmapVisualization')
             .append('svg')
             .attr('width', width)
             .attr('height', height)
             .attr('viewBox', `0 0 ${width} ${height}`)
-            .attr('style', 'max-width: 100%; height: auto;');
+            .attr('style', 'max-width: 100%; height: auto; background-color: #f8f9fa;');
+
+        // Add zoom behavior
+        const zoom = d3.zoom()
+            .scaleExtent([0.5, 2])
+            .on('zoom', (event) => {
+                g.attr('transform', event.transform);
+            });
+
+        svg.call(zoom);
+
+        // Create a group for all elements
+        const g = svg.append('g');
 
         // Group entities by type
         const groupedEntities = {};
@@ -157,28 +169,36 @@ document.addEventListener('DOMContentLoaded', () => {
             groupedEntities[entity.type].push(entity);
         });
 
-        // Create nodes for each type
-        const typeNodes = Object.keys(groupedEntities).map((type, index) => ({
-            id: `type-${index}`,
-            text: type,
-            type: 'TYPE',
-            x: centerX + Math.cos(index * 2 * Math.PI / Object.keys(groupedEntities).length) * 150,
-            y: centerY + Math.sin(index * 2 * Math.PI / Object.keys(groupedEntities).length) * 150
-        }));
+        // Calculate positions for type nodes
+        const typeKeys = Object.keys(groupedEntities);
+        const typeRadius = 250; // Distance from center to type nodes
+        const typeNodes = typeKeys.map((type, index) => {
+            const angle = (index * 2 * Math.PI / typeKeys.length) - Math.PI / 2;
+            return {
+                id: `type-${index}`,
+                text: type,
+                type: 'TYPE',
+                x: centerX + Math.cos(angle) * typeRadius,
+                y: centerY + Math.sin(angle) * typeRadius,
+                angle: angle
+            };
+        });
 
-        // Create nodes for each entity
+        // Calculate positions for entity nodes
         const entityNodes = [];
+        const entityRadius = 150; // Distance from type node to entity nodes
         typeNodes.forEach((typeNode, typeIndex) => {
             const typeEntities = groupedEntities[typeNode.text];
             typeEntities.forEach((entity, entityIndex) => {
-                const angle = (entityIndex * 2 * Math.PI / typeEntities.length) + (typeIndex * 2 * Math.PI / typeNodes.length);
+                const segment = 2 * Math.PI / typeEntities.length;
+                const angle = typeNode.angle - Math.PI/4 + segment * entityIndex;
                 entityNodes.push({
                     id: `entity-${entityIndex}-${typeIndex}`,
                     text: entity.text,
                     type: 'ENTITY',
                     parentType: typeNode.text,
-                    x: typeNode.x + Math.cos(angle) * 100,
-                    y: typeNode.y + Math.sin(angle) * 100
+                    x: typeNode.x + Math.cos(angle) * entityRadius,
+                    y: typeNode.y + Math.sin(angle) * entityRadius
                 });
             });
         });
@@ -186,13 +206,13 @@ document.addEventListener('DOMContentLoaded', () => {
         // Create center node
         const centerNode = {
             id: 'center',
-            text: 'Book Summary',
+            text: 'Book\nSummary',
             type: 'CENTER',
             x: centerX,
             y: centerY
         };
 
-        // Create all links
+        // Create curved links
         const links = [
             // Links from center to type nodes
             ...typeNodes.map(node => ({
@@ -206,53 +226,153 @@ document.addEventListener('DOMContentLoaded', () => {
             }))
         ];
 
-        // Draw links
-        svg.selectAll('line')
+        // Draw curved links
+        g.selectAll('path')
             .data(links)
             .enter()
-            .append('line')
-            .attr('x1', d => d.source.x)
-            .attr('y1', d => d.source.y)
-            .attr('x2', d => d.target.x)
-            .attr('y2', d => d.target.y)
-            .attr('stroke', '#999')
-            .attr('stroke-opacity', 0.6)
-            .attr('stroke-width', d => d.source.type === 'CENTER' ? 2 : 1);
+            .append('path')
+            .attr('d', d => {
+                const dx = d.target.x - d.source.x;
+                const dy = d.target.y - d.source.y;
+                const dr = Math.sqrt(dx * dx + dy * dy) * 1.2;
+                return `M${d.source.x},${d.source.y}A${dr},${dr} 0 0,1 ${d.target.x},${d.target.y}`;
+            })
+            .attr('fill', 'none')
+            .attr('stroke', '#ccc')
+            .attr('stroke-width', d => d.source.type === 'CENTER' ? 3 : 2)
+            .attr('opacity', 0.6);
 
         // Draw all nodes
         const allNodes = [centerNode, ...typeNodes, ...entityNodes];
-        const nodeGroups = svg.selectAll('g')
+        const nodeGroups = g.selectAll('g.node')
             .data(allNodes)
             .enter()
             .append('g')
+            .attr('class', 'node')
             .attr('transform', d => `translate(${d.x},${d.y})`);
 
-        // Add circles for nodes
-        nodeGroups.append('circle')
-            .attr('r', d => {
-                if (d.type === 'CENTER') return 40;
-                if (d.type === 'TYPE') return 30;
-                return 20;
-            })
-            .attr('fill', d => {
-                if (d.type === 'CENTER') return '#4CAF50';
-                if (d.type === 'TYPE') return '#2196F3';
-                return '#FF9800';
-            })
-            .attr('stroke', '#fff')
-            .attr('stroke-width', 2);
+        // Add node circles with gradients
+        nodeGroups.each(function(d) {
+            const node = d3.select(this);
+            const gradientId = `gradient-${d.id}`;
+
+            // Create gradient
+            const gradient = svg.append('defs')
+                .append('radialGradient')
+                .attr('id', gradientId)
+                .attr('cx', '30%')
+                .attr('cy', '30%');
+
+            let colors;
+            if (d.type === 'CENTER') {
+                colors = ['#6dd5ed', '#2193b0'];
+            } else if (d.type === 'TYPE') {
+                colors = ['#ffd3b6', '#ff9a9e'];
+            } else {
+                colors = ['#a8edea', '#fed6e3'];
+            }
+
+            gradient.append('stop')
+                .attr('offset', '0%')
+                .attr('stop-color', colors[0]);
+
+            gradient.append('stop')
+                .attr('offset', '100%')
+                .attr('stop-color', colors[1]);
+
+            // Add circle with gradient
+            node.append('circle')
+                .attr('r', d => {
+                    if (d.type === 'CENTER') return 60;
+                    if (d.type === 'TYPE') return 45;
+                    return 35;
+                })
+                .attr('fill', `url(#${gradientId})`)
+                .attr('stroke', '#fff')
+                .attr('stroke-width', 3)
+                .attr('filter', 'url(#drop-shadow)');
+        });
+
+        // Add drop shadow filter
+        const defs = svg.append('defs');
+        const filter = defs.append('filter')
+            .attr('id', 'drop-shadow')
+            .attr('height', '130%');
+
+        filter.append('feGaussianBlur')
+            .attr('in', 'SourceAlpha')
+            .attr('stdDeviation', 3)
+            .attr('result', 'blur');
+
+        filter.append('feOffset')
+            .attr('in', 'blur')
+            .attr('dx', 2)
+            .attr('dy', 2)
+            .attr('result', 'offsetBlur');
+
+        const feMerge = filter.append('feMerge');
+        feMerge.append('feMergeNode')
+            .attr('in', 'offsetBlur');
+        feMerge.append('feMergeNode')
+            .attr('in', 'SourceGraphic');
 
         // Add text labels
         nodeGroups.append('text')
             .attr('text-anchor', 'middle')
-            .attr('dy', '.3em')
-            .attr('fill', 'white')
+            .attr('dy', d => d.type === 'CENTER' ? 0 : '.3em')
+            .attr('fill', '#2c3e50')
+            .attr('font-weight', d => d.type === 'CENTER' ? 'bold' : 'normal')
             .attr('font-size', d => {
-                if (d.type === 'CENTER') return '14px';
-                if (d.type === 'TYPE') return '12px';
-                return '10px';
+                if (d.type === 'CENTER') return '16px';
+                if (d.type === 'TYPE') return '14px';
+                return '12px';
             })
-            .text(d => d.text.length > 15 ? d.text.substring(0, 15) + '...' : d.text);
+            .each(function(d) {
+                const text = d3.select(this);
+                const words = d.text.split(/\s+|(?=\n)/);
+                let line = [];
+                let lineNumber = 0;
+                const lineHeight = d.type === 'CENTER' ? 1.2 : 1.1;
+                const y = d.type === 'CENTER' ? -20 : 0;
+                const dy = d.type === 'CENTER' ? 16 : 12;
+
+                for (let i = 0; i < words.length; i++) {
+                    const word = words[i];
+                    if (word === '\n') {
+                        text.append('tspan')
+                            .attr('x', 0)
+                            .attr('y', y)
+                            .attr('dy', `${lineNumber * lineHeight}em`)
+                            .text(line.join(' '));
+                        line = [];
+                        lineNumber++;
+                        continue;
+                    }
+                    line.push(word);
+                    if (i === words.length - 1) {
+                        text.append('tspan')
+                            .attr('x', 0)
+                            .attr('y', y)
+                            .attr('dy', `${lineNumber * lineHeight}em`)
+                            .text(line.join(' '));
+                    }
+                }
+            });
+
+        // Add hover interactions
+        nodeGroups
+            .on('mouseover', function(event, d) {
+                d3.select(this)
+                    .transition()
+                    .duration(200)
+                    .attr('transform', `translate(${d.x},${d.y})scale(1.1)`);
+            })
+            .on('mouseout', function(event, d) {
+                d3.select(this)
+                    .transition()
+                    .duration(200)
+                    .attr('transform', `translate(${d.x},${d.y})scale(1)`);
+            });
     }
 
     // Handle tab switching
